@@ -3,7 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"sync"
+	"strings"
+	"time"
 
 	fakedatapath "github.com/cilium/cilium/pkg/datapath/fake"
 	"github.com/cilium/cilium/pkg/kvstore"
@@ -14,6 +15,7 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 
 	"github.com/google/uuid"
+	"gonum.org/v1/gonum/stat"
 )
 
 func main() {
@@ -29,30 +31,52 @@ func main() {
 	option.Config.IPv4ServiceRange = "auto"
 	option.Config.IPv6ServiceRange = "auto"
 
-	dp := fakedatapath.NewDatapath()
-	nodeMngr, err := nodemanager.NewManager("all", dp.Node())
-	if err != nil {
-		fmt.Println("error creating nodemanager:", err.Error())
-		return
-	}
+	timesCh := make(chan float64)
 
-	mtuConfig := mtu.NewConfiguration(false, 1500)
-
-	var wg sync.WaitGroup
 	for i := 0; i < *count; i++ {
-		wg.Add(1)
 		go func() {
-			defer wg.Done()
-			nd := nodediscovery.NewNodeDiscovery(nodeMngr, mtuConfig)
+			var t time.Duration
+			defer func() {
+				timesCh <- t.Seconds()
+			}()
 			id, err := uuid.NewRandom()
 			if err != nil {
 				fmt.Println("error generating uuid:", err.Error())
 				return
 			}
-			node.SetName(id.String())
+
+			uid := strings.Replace(id.String(), "-", "", -1)
+
+			mtuConfig := mtu.NewConfiguration(false, 1500)
+			dp := fakedatapath.NewDatapath()
+			nodeMngr, err := nodemanager.NewManager(uid, dp.Node())
+			if err != nil {
+				fmt.Println("error creating nodemanager:", err.Error())
+				return
+			}
+			nd := nodediscovery.NewNodeDiscovery(nodeMngr, mtuConfig)
+			node.SetName(uid)
+
+			start := time.Now()
 			nd.StartDiscovery()
 			<-nd.Registered
+
+			for {
+				nodes := nodeMngr.GetNodes()
+				if len(nodes) >= *count {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			t = time.Since(start)
 		}()
 	}
-	wg.Wait()
+
+	times := make([]float64, *count)
+	for i := 0; i < *count; i++ {
+		times = append(times, <-timesCh)
+	}
+
+	m, s := stat.MeanStdDev(times, nil)
+	fmt.Printf("Mean discovery time: %fs, variance: %fs\n", m, s)
 }

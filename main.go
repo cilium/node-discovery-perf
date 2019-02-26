@@ -18,6 +18,8 @@ import (
 	"gonum.org/v1/gonum/stat"
 )
 
+var waitTime = 1 * time.Second
+
 type virtualNode struct {
 	t   time.Duration        // time that took the node to receive updates about all other nodes
 	mgr *nodemanager.Manager // manager for this virtual node
@@ -86,7 +88,7 @@ func waitForCount(manager *nodemanager.Manager, timeCh chan time.Duration, count
 		if len(nodes) >= count {
 			break
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(waitTime)
 	}
 	t = time.Since(start)
 }
@@ -125,7 +127,7 @@ func registerAndWaitForOthers(nodeChannel chan virtualNode, n int) {
 		if len(nodes) >= n {
 			break
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(waitTime)
 	}
 	localNode.t = time.Since(start)
 }

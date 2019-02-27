@@ -29,9 +29,19 @@ func main() {
 	var initialCount = flag.Int("initial-count", 1, "Number of concurrent node discovery agents set up initially")
 	var additionalCount = flag.Int("additional-count", 0, "Number of nodes registered after initial nodes are set up")
 	var address = flag.String("etcd-address", "127.0.0.1:2379", "etcd address")
+	var etcdConfig = flag.String("etcd-config", "", "etcd config file")
 	flag.Parse()
 
-	err := kvstore.Setup("etcd", map[string]string{"etcd.address": *address})
+	var err error
+
+	if *etcdConfig == "" {
+		fmt.Println("Setting address")
+		err = kvstore.Setup("etcd", map[string]string{"etcd.address": *address})
+	} else {
+		fmt.Println("Setting config")
+		err = kvstore.Setup("etcd", map[string]string{"etcd.config": *etcdConfig})
+	}
+
 	if err != nil {
 		fmt.Println("error setting up kvstore:", err.Error())
 		return

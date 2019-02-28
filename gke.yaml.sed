@@ -9,7 +9,7 @@ spec:
       containers:
       - args:
         - "--etcd-config=/var/lib/etcd-config/etcd.config"
-        - "--initial-count=1000"
+        - "--initial-count=INIT_COUNT"
         - "--additional-count=1"
         command:
         - "./node-discovery-perf"

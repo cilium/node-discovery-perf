@@ -28,6 +28,7 @@ type virtualNode struct {
 func main() {
 	var initialCount = flag.Int("initial-count", 1, "Number of concurrent node discovery agents set up initially")
 	var additionalCount = flag.Int("additional-count", 0, "Number of nodes registered after initial nodes are set up")
+	var externalCount = flag.Int("external-count", 0, "Number of nodes to expect from other nodeperf clients")
 	var address = flag.String("etcd-address", "127.0.0.1:2379", "etcd address")
 	var etcdConfig = flag.String("etcd-config", "", "etcd config file")
 	flag.Parse()
@@ -52,7 +53,7 @@ func main() {
 	nodeCh := make(chan virtualNode)
 
 	for i := 0; i < *initialCount; i++ {
-		go registerAndWaitForOthers(nodeCh, *initialCount)
+		go registerAndWaitForOthers(nodeCh, *initialCount, *externalCount)
 	}
 
 	times := make([]float64, 0, *initialCount)
@@ -71,11 +72,11 @@ func main() {
 		timeCh := make(chan time.Duration)
 
 		for i := 0; i < *additionalCount; i++ {
-			go registerAndWaitForOthers(nodeCh, *initialCount+*additionalCount)
+			go registerAndWaitForOthers(nodeCh, *initialCount+*additionalCount, *externalCount)
 		}
 
 		for _, m := range managers {
-			go waitForCount(m, timeCh, *initialCount+*additionalCount)
+			go waitForCount(m, timeCh, *initialCount+*additionalCount+*externalCount)
 		}
 		times := make([]float64, 0, *initialCount)
 		for i := 0; i < *initialCount; i++ {
@@ -103,7 +104,7 @@ func waitForCount(manager *nodemanager.Manager, timeCh chan time.Duration, count
 	t = time.Since(start)
 }
 
-func registerAndWaitForOthers(nodeChannel chan virtualNode, n int) {
+func registerAndWaitForOthers(nodeChannel chan virtualNode, n, external int) {
 	var localNode virtualNode
 	defer func() {
 		nodeChannel <- localNode
@@ -134,7 +135,7 @@ func registerAndWaitForOthers(nodeChannel chan virtualNode, n int) {
 
 	for {
 		nodes := nodeMngr.GetNodes()
-		if len(nodes) >= n {
+		if len(nodes) >= n+external {
 			break
 		}
 		time.Sleep(waitTime)

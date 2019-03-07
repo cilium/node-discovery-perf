@@ -1,1 +1,6 @@
-Note: this tool depends on code from this PR: https://github.com/cilium/cilium/pull/7141
+# How to run me
+
+`./test.sh`
+
+This test will simulate up to 2000 nodes across 2 jobs (up to 1000 nodes per
+job). Both jobs will be executed in 2 separate nodes.

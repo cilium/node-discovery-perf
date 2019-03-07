@@ -25,8 +25,15 @@ type virtualNode struct {
 }
 
 func main() {
+	// initialCount is for measuring how long it takes for `initialCount` nodes to discover each other
 	var initialCount = flag.Int("initial-count", 1, "Number of concurrent node discovery agents set up initially")
+	// additionalCount is number of nodes to add after initial discovery is done
+	// it's for measuring how much time does it take for all nodes that were initially
+	// created to discover `additionalCount` new node(s)
 	var additionalCount = flag.Int("additional-count", 0, "Number of nodes registered after initial nodes are set up")
+	// is a number of total nodes for test minus nodes from current test
+	// for example if running 3 nodeperf clients in 3 pods, this will be `2*initialCount`
+	// (if `initialCount` is the same for all created clients)
 	var externalCount = flag.Int("external-count", 0, "Number of nodes to expect from other nodeperf clients")
 	var address = flag.String("etcd-address", "127.0.0.1:2379", "etcd address")
 	var etcdConfig = flag.String("etcd-config", "", "etcd config file")
@@ -103,7 +110,7 @@ func waitForCount(manager *nodemanager.Manager, timeCh chan time.Duration, count
 	t = time.Since(start)
 }
 
-func registerAndWaitForOthers(nodeChannel chan virtualNode, n, external int) {
+func registerAndWaitForOthers(nodeChannel chan virtualNode, initialCount, externalCount int) {
 	var localNode virtualNode
 	defer func() {
 		nodeChannel <- localNode
@@ -133,7 +140,7 @@ func registerAndWaitForOthers(nodeChannel chan virtualNode, n, external int) {
 
 	for {
 		nodes := nodeMngr.GetNodes()
-		if len(nodes) >= n+external {
+		if len(nodes) >= initialCount+externalCount {
 			break
 		}
 		time.Sleep(waitTime)

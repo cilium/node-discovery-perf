@@ -9,7 +9,6 @@ import (
 	fakedatapath "github.com/cilium/cilium/pkg/datapath/fake"
 	"github.com/cilium/cilium/pkg/kvstore"
 	"github.com/cilium/cilium/pkg/mtu"
-	"github.com/cilium/cilium/pkg/node"
 	nodemanager "github.com/cilium/cilium/pkg/node/manager"
 	"github.com/cilium/cilium/pkg/nodediscovery"
 	"github.com/cilium/cilium/pkg/option"
@@ -37,10 +36,10 @@ func main() {
 
 	if *etcdConfig == "" {
 		fmt.Println("Setting address")
-		err = kvstore.Setup("etcd", map[string]string{"etcd.address": *address})
+		err = kvstore.Setup("etcd", map[string]string{"etcd.address": *address}, nil)
 	} else {
 		fmt.Println("Setting config")
-		err = kvstore.Setup("etcd", map[string]string{"etcd.config": *etcdConfig})
+		err = kvstore.Setup("etcd", map[string]string{"etcd.config": *etcdConfig}, nil)
 	}
 
 	if err != nil {
@@ -127,10 +126,9 @@ func registerAndWaitForOthers(nodeChannel chan virtualNode, n, external int) {
 	}
 	localNode.mgr = nodeMngr
 	nd := nodediscovery.NewNodeDiscovery(nodeMngr, mtuConfig)
-	node.SetName(uid)
 
 	start := time.Now()
-	nd.StartDiscovery()
+	nd.StartDiscovery(uid)
 	<-nd.Registered
 
 	for {

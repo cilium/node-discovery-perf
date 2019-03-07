@@ -25,6 +25,7 @@ import (
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/option"
 
 	"github.com/sirupsen/logrus"
 )
@@ -33,10 +34,6 @@ const (
 	// listTimeoutDefault is the default timeout to wait while performing
 	// the initial list operation of objects from the kvstore
 	listTimeoutDefault = 3 * time.Minute
-
-	// synchronizationIntervalDefault is the default interval to
-	// synchronize keys with the kvstore
-	synchronizationIntervalDefault = time.Minute
 
 	// watcherChanSize is the size of the channel to buffer kvstore events
 	watcherChanSize = 100
@@ -90,7 +87,7 @@ func (c *Configuration) validate() error {
 	}
 
 	if c.SynchronizationInterval == 0 {
-		c.SynchronizationInterval = synchronizationIntervalDefault
+		c.SynchronizationInterval = option.Config.KVstorePeriodicSync
 	}
 
 	if c.Backend == nil {
@@ -293,6 +290,19 @@ func (s *SharedStore) syncLocalKeys() error {
 	return nil
 }
 
+func (s *SharedStore) lookupLocalKey(name string) LocalKey {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	for _, key := range s.localKeys {
+		if key.GetKeyName() == name {
+			return key
+		}
+	}
+
+	return nil
+}
+
 // UpdateLocalKey adds a key to be synchronized with the kvstore
 func (s *SharedStore) UpdateLocalKey(key LocalKey) {
 	s.mutex.Lock()
@@ -316,13 +326,14 @@ func (s *SharedStore) UpdateLocalKeySync(key LocalKey) error {
 
 // DeleteLocalKey removes a key from being synchronized with the kvstore
 func (s *SharedStore) DeleteLocalKey(key LocalKey) {
-	err := s.backend.Delete(s.keyPath(key))
 	name := key.GetKeyName()
 
 	s.mutex.Lock()
 	_, ok := s.localKeys[name]
 	delete(s.localKeys, name)
 	s.mutex.Unlock()
+
+	err := s.backend.Delete(s.keyPath(key))
 
 	if ok {
 		if err != nil {
@@ -446,7 +457,12 @@ func (s *SharedStore) watcher(listDone chan bool) {
 				}
 
 			case kvstore.EventTypeDelete:
-				s.deleteKey(keyName)
+				if localKey := s.lookupLocalKey(keyName); localKey != nil {
+					logger.Warning("Received delete event for local key. Re-creating the key in the kvstore")
+					s.syncLocalKey(localKey)
+				} else {
+					s.deleteKey(keyName)
+				}
 			}
 		}
 	}

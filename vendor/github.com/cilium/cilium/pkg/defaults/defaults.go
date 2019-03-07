@@ -155,4 +155,10 @@ const (
 
 	// EnableHealthChecking is the default value for EnableHealthChecking
 	EnableHealthChecking = true
+
+	// AlignCheckerName is the BPF object name for the alignchecker.
+	AlignCheckerName = "bpf_alignchecker.o"
+
+	// KVstorePeriodicSync is the default kvstore periodic sync interval
+	KVstorePeriodicSync = 5 * time.Minute
 )

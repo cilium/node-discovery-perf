@@ -42,7 +42,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:3e7903a9601e3c1dfe692507bd81debc94b816cb5d6cb086a7f6d7d62813ede6"
+  digest = "1:7134d8557a4844371490b7f2412318de9794acc0896f00c17ad550abacc04bd3"
   name = "github.com/cilium/cilium"
   packages = [
     "api/v1/client",
@@ -98,7 +98,7 @@
     "pkg/uuid",
   ]
   pruneopts = "UT"
-  revision = "d5fff02b2fe0aca0ace8ea1773410e0de533b669"
+  revision = "06383b5ebc377b56d881f6ab75ee420263086097"
 
 [[projects]]
   digest = "1:ffcf14dadc8683fae2d8c593917253a3acad5876ec3dcf92c00d1e446e00db4b"
@@ -628,31 +628,44 @@
   revision = "082222b4a5c572e33e82ee9162d1352c7cf38682"
 
 [[projects]]
-  digest = "1:45101b53b1b93d50e2464e3b164bfa72cc77229fb998cfcd029987006488c641"
+  digest = "1:8f56475624fb72854d06ca16c2f7032e3cea14a63074e9c199ba8d46431c1127"
   name = "google.golang.org/grpc"
   packages = [
     ".",
     "balancer",
+    "balancer/base",
+    "balancer/roundrobin",
+    "binarylog/grpc_binarylog_v1",
     "codes",
     "connectivity",
     "credentials",
-    "grpclb/grpc_lb_v1/messages",
+    "credentials/internal",
+    "encoding",
+    "encoding/proto",
     "grpclog",
     "health/grpc_health_v1",
     "internal",
+    "internal/backoff",
+    "internal/binarylog",
+    "internal/channelz",
+    "internal/envconfig",
+    "internal/grpcrand",
+    "internal/grpcsync",
+    "internal/syscall",
+    "internal/transport",
     "keepalive",
     "metadata",
     "naming",
     "peer",
     "resolver",
+    "resolver/dns",
+    "resolver/passthrough",
     "stats",
     "status",
     "tap",
-    "transport",
   ]
   pruneopts = "UT"
-  revision = "5b3c4e850e90a4cf6a20ebd46c8b32a0a3afcb9e"
-  version = "v1.7.5"
+  revision = "v1.17.0"
 
 [[projects]]
   digest = "1:4d2e5a73dc1500038e504a8d78b986630e3626dc027bc030ba5c75da257cdb96"
@@ -669,7 +682,6 @@
     "github.com/cilium/cilium/pkg/datapath/fake",
     "github.com/cilium/cilium/pkg/kvstore",
     "github.com/cilium/cilium/pkg/mtu",
-    "github.com/cilium/cilium/pkg/node",
     "github.com/cilium/cilium/pkg/node/manager",
     "github.com/cilium/cilium/pkg/nodediscovery",
     "github.com/cilium/cilium/pkg/option",

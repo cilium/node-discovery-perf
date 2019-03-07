@@ -24,6 +24,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/common"
@@ -155,6 +156,9 @@ const (
 
 	// K8sKubeConfigPath is the absolute path of the kubernetes kubeconfig file
 	K8sKubeConfigPath = "k8s-kubeconfig-path"
+
+	// K8sWatcherQueueSize is the queue size used to serialize each k8s event type
+	K8sWatcherQueueSize = "k8s-watcher-queue-size"
 
 	// KeepConfig when restoring state, keeps containers' configuration in place
 	KeepConfig = "keep-config"
@@ -396,6 +400,10 @@ const (
 
 	// IPSecKeyFileName is the name of the option for ipsec key file
 	IPSecKeyFileName = "ipsec-key-file"
+
+	// KVstorePeriodicSync is the time interval in which periodic
+	// synchronization with the kvstore occurs
+	KVstorePeriodicSync = "kvstore-periodic-sync"
 )
 
 // FQDNS variables
@@ -583,6 +591,10 @@ type DaemonConfig struct {
 	// IPv6 PodCIDR. Cilium will block bootstrapping until the information
 	// is available.
 	K8sRequireIPv6PodCIDR bool
+
+	// K8sWatcherQueueSize is the queue size used to serialize each k8s event
+	// type.
+	K8sWatcherQueueSize uint
 
 	// MTU is the maximum transmission unit of the underlying network
 	MTU int
@@ -780,6 +792,10 @@ type DaemonConfig struct {
 	// EnableHealthChecking enables health checking between nodes and
 	// health endpoints
 	EnableHealthChecking bool
+
+	// KVstorePeriodicSync is the time interval in which periodic
+	// synchronization with the kvstore occurs
+	KVstorePeriodicSync time.Duration
 }
 
 var (
@@ -794,6 +810,7 @@ var (
 		EnableIPv4:               defaults.EnableIPv4,
 		EnableIPv6:               defaults.EnableIPv6,
 		ToFQDNsMaxIPsPerHost:     defaults.ToFQDNsMaxIPsPerHost,
+		KVstorePeriodicSync:      defaults.KVstorePeriodicSync,
 		ContainerRuntimeEndpoint: make(map[string]string),
 		FixedIdentityMapping:     make(map[string]string),
 		KVStoreOpt:               make(map[string]string),
@@ -1042,9 +1059,11 @@ func (c *DaemonConfig) Populate() {
 	c.K8sKubeConfigPath = viper.GetString(K8sKubeConfigPath)
 	c.K8sRequireIPv4PodCIDR = viper.GetBool(K8sRequireIPv4PodCIDRName)
 	c.K8sRequireIPv6PodCIDR = viper.GetBool(K8sRequireIPv6PodCIDRName)
+	c.K8sWatcherQueueSize = uint(viper.GetInt(K8sWatcherQueueSize))
 	c.KeepTemplates = viper.GetBool(KeepBPFTemplates)
 	c.KeepConfig = viper.GetBool(KeepConfig)
 	c.KVStore = viper.GetString(KVStore)
+	c.KVstorePeriodicSync = viper.GetDuration(KVstorePeriodicSync)
 	c.LabelPrefixFile = viper.GetString(LabelPrefixFile)
 	c.Labels = viper.GetStringSlice(Labels)
 	c.LBInterface = viper.GetString(LB)

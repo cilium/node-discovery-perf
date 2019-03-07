@@ -15,6 +15,7 @@
 package kvstore
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -102,6 +103,10 @@ func (c *consulModule) setConfigDummy() {
 
 func (c *consulModule) setConfig(opts map[string]string) error {
 	return setOpts(opts, c.opts)
+}
+
+func (c *consulModule) setExtraConfig(opts *ExtraOptions) error {
+	return nil
 }
 
 func (c *consulModule) getConfig() map[string]string {
@@ -231,7 +236,7 @@ func newConsulClient(config *consulAPI.Config) (BackendOperations, error) {
 	return client, nil
 }
 
-func (c *consulClient) LockPath(path string) (kvLocker, error) {
+func (c *consulClient) LockPath(ctx context.Context, path string) (kvLocker, error) {
 	lockKey, err := c.LockOpts(&consulAPI.LockOptions{Key: getLockPath(path)})
 	if err != nil {
 		return nil, err
@@ -246,6 +251,12 @@ func (c *consulClient) LockPath(path string) (kvLocker, error) {
 			Trace("Acquiring lock timed out, retrying", nil, logrus.Fields{fieldKey: path, logfields.Attempt: retries})
 		default:
 			return lockKey, err
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("lock cancelled via context: %s", ctx.Err())
+		default:
 		}
 	}
 
@@ -447,7 +458,7 @@ func (c *consulClient) createIfExists(condKey, key string, value []byte, lease b
 	//
 	// Lock the conditional key to serialize all CreateIfExists() calls
 
-	l, err := LockPath(condKey)
+	l, err := LockPath(context.Background(), condKey)
 	if err != nil {
 		return fmt.Errorf("unable to lock condKey for CreateIfExists: %s", err)
 	}

@@ -1,3 +1,17 @@
+// Copyright 2019 Authors of Cilium
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
@@ -9,7 +23,6 @@ import (
 	fakedatapath "github.com/cilium/cilium/pkg/datapath/fake"
 	"github.com/cilium/cilium/pkg/kvstore"
 	"github.com/cilium/cilium/pkg/mtu"
-	"github.com/cilium/cilium/pkg/node"
 	nodemanager "github.com/cilium/cilium/pkg/node/manager"
 	"github.com/cilium/cilium/pkg/nodediscovery"
 	"github.com/cilium/cilium/pkg/option"
@@ -26,8 +39,15 @@ type virtualNode struct {
 }
 
 func main() {
+	// initialCount is for measuring how long it takes for `initialCount` nodes to discover each other
 	var initialCount = flag.Int("initial-count", 1, "Number of concurrent node discovery agents set up initially")
+	// additionalCount is number of nodes to add after initial discovery is done
+	// it's for measuring how much time does it take for all nodes that were initially
+	// created to discover `additionalCount` new node(s)
 	var additionalCount = flag.Int("additional-count", 0, "Number of nodes registered after initial nodes are set up")
+	// is a number of total nodes for test minus nodes from current test
+	// for example if running 3 nodeperf clients in 3 pods, this will be `2*initialCount`
+	// (if `initialCount` is the same for all created clients)
 	var externalCount = flag.Int("external-count", 0, "Number of nodes to expect from other nodeperf clients")
 	var address = flag.String("etcd-address", "127.0.0.1:2379", "etcd address")
 	var etcdConfig = flag.String("etcd-config", "", "etcd config file")
@@ -37,10 +57,10 @@ func main() {
 
 	if *etcdConfig == "" {
 		fmt.Println("Setting address")
-		err = kvstore.Setup("etcd", map[string]string{"etcd.address": *address})
+		err = kvstore.Setup("etcd", map[string]string{"etcd.address": *address}, nil)
 	} else {
 		fmt.Println("Setting config")
-		err = kvstore.Setup("etcd", map[string]string{"etcd.config": *etcdConfig})
+		err = kvstore.Setup("etcd", map[string]string{"etcd.config": *etcdConfig}, nil)
 	}
 
 	if err != nil {
@@ -104,7 +124,7 @@ func waitForCount(manager *nodemanager.Manager, timeCh chan time.Duration, count
 	t = time.Since(start)
 }
 
-func registerAndWaitForOthers(nodeChannel chan virtualNode, n, external int) {
+func registerAndWaitForOthers(nodeChannel chan virtualNode, initialCount, externalCount int) {
 	var localNode virtualNode
 	defer func() {
 		nodeChannel <- localNode
@@ -127,15 +147,14 @@ func registerAndWaitForOthers(nodeChannel chan virtualNode, n, external int) {
 	}
 	localNode.mgr = nodeMngr
 	nd := nodediscovery.NewNodeDiscovery(nodeMngr, mtuConfig)
-	node.SetName(uid)
 
 	start := time.Now()
-	nd.StartDiscovery()
+	nd.StartDiscovery(uid)
 	<-nd.Registered
 
 	for {
 		nodes := nodeMngr.GetNodes()
-		if len(nodes) >= n+external {
+		if len(nodes) >= initialCount+externalCount {
 			break
 		}
 		time.Sleep(waitTime)

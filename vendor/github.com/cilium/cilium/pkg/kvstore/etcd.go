@@ -15,7 +15,9 @@
 package kvstore
 
 import (
+	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -105,6 +107,14 @@ func (e *etcdModule) setConfig(opts map[string]string) error {
 	return setOpts(opts, e.opts)
 }
 
+func (e *etcdModule) setExtraConfig(opts *ExtraOptions) error {
+	if opts != nil && len(opts.DialOption) != 0 {
+		e.config = &client.Config{}
+		e.config.DialOptions = append(e.config.DialOptions, opts.DialOption...)
+	}
+	return nil
+}
+
 func (e *etcdModule) getConfig() map[string]string {
 	return getOpts(e.opts)
 }
@@ -114,8 +124,11 @@ func (e *etcdModule) newClient() (BackendOperations, chan error) {
 
 	endpointsOpt, endpointsSet := e.opts[addrOption]
 	configPathOpt, configSet := e.opts[EtcdOptionConfig]
-	configPath := ""
 
+	var configPath string
+	if configSet {
+		configPath = configPathOpt.value
+	}
 	if e.config == nil {
 		if !endpointsSet && !configSet {
 			errChan <- fmt.Errorf("invalid etcd configuration, %s or %s must be specified", EtcdOptionConfig, addrOption)
@@ -123,7 +136,7 @@ func (e *etcdModule) newClient() (BackendOperations, chan error) {
 			return nil, errChan
 		}
 
-		if endpointsOpt.value == "" && configPathOpt.value == "" {
+		if endpointsOpt.value == "" && configPath == "" {
 			errChan <- fmt.Errorf("invalid etcd configuration, %s or %s must be specified",
 				EtcdOptionConfig, addrOption)
 			close(errChan)
@@ -131,14 +144,10 @@ func (e *etcdModule) newClient() (BackendOperations, chan error) {
 		}
 
 		e.config = &client.Config{}
+	}
 
-		if endpointsSet {
-			e.config.Endpoints = []string{endpointsOpt.value}
-		}
-
-		if configSet {
-			configPath = configPathOpt.value
-		}
+	if e.config.Endpoints == nil && endpointsSet {
+		e.config.Endpoints = []string{endpointsOpt.value}
 	}
 
 	for {
@@ -263,6 +272,7 @@ func connectEtcdClient(config *client.Config, cfgPath string, errChan chan error
 		if err != nil {
 			return nil, err
 		}
+		cfg.DialOptions = append(cfg.DialOptions, config.DialOptions...)
 		config = cfg
 	}
 
@@ -287,7 +297,7 @@ func connectEtcdClient(config *client.Config, cfgPath string, errChan chan error
 
 	// create session in parallel as this is a blocking operation
 	go func() {
-		session, err := concurrency.NewSession(c)
+		session, err := concurrency.NewSession(c, concurrency.WithTTL(int(LeaseTTL.Seconds())))
 		errorChan <- err
 		sessionChan <- session
 		close(sessionChan)
@@ -397,13 +407,18 @@ func (e *etcdClient) checkMinVersion() error {
 	return nil
 }
 
-func (e *etcdClient) LockPath(path string) (kvLocker, error) {
-	<-e.firstSession
+func (e *etcdClient) LockPath(ctx context.Context, path string) (kvLocker, error) {
+	select {
+	case <-e.firstSession:
+	case <-ctx.Done():
+		return nil, fmt.Errorf("lock cancelled via context: %s", ctx.Err())
+	}
+
 	e.RLock()
 	mu := concurrency.NewMutex(e.session, path)
 	e.RUnlock()
 
-	ctx, cancel := ctx.WithTimeout(ctx.Background(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	err := mu.Lock(ctx)
 	if err != nil {
@@ -793,4 +808,52 @@ func (e *etcdClient) ListAndWatch(name, prefix string, chanSize int) *Watcher {
 	go e.Watch(w)
 
 	return w
+}
+
+// IsEtcdOperator returns true if the configuration is setting up an
+// etcd-operator and false otherwise.
+func IsEtcdOperator(selectedBackend string, opts map[string]string, k8sNamespace string) bool {
+	if selectedBackend != EtcdBackendName {
+		return false
+	}
+
+	fqdnIsEtcdOperator := func(address string) bool {
+		u, err := url.Parse(address)
+		if err != nil {
+			return false
+		}
+		// typical service name "cilium-etcd-client.kube-system.svc"
+		names := strings.Split(u.Hostname(), ".")
+		return len(names) >= 2 &&
+			names[0] == "cilium-etcd-client" &&
+			names[1] == k8sNamespace
+	}
+
+	fqdn := opts[addrOption]
+	if len(fqdn) != 0 {
+		return fqdnIsEtcdOperator(fqdn)
+	}
+
+	bm := newEtcdModule()
+	err := bm.setConfig(opts)
+	if err != nil {
+		return false
+	}
+	etcdConfig := bm.getConfig()[EtcdOptionConfig]
+	if len(etcdConfig) == 0 {
+		return false
+	}
+
+	cfg, err := clientyaml.NewConfig(etcdConfig)
+	if err != nil {
+		log.WithError(err).Error("Unable to read etcd configuration.")
+		return false
+	}
+	for _, endpoint := range cfg.Endpoints {
+		if fqdnIsEtcdOperator(endpoint) {
+			return true
+		}
+	}
+
+	return false
 }

@@ -23,8 +23,8 @@ spec:
         - "--external-count=INIT_COUNT"
         command:
         - "./node-discovery-perf"
-        image: nebril/cilium-nodes-perf
-        imagePullPolicy: Always
+        image: docker.io/cilium/cilium-nodes-perf:v1.0.0
+        imagePullPolicy: IfNotPresent
         name: nodeperf
         volumeMounts:
         - mountPath: /var/lib/etcd-config
@@ -73,8 +73,8 @@ spec:
         - "--external-count=INIT_COUNT"
         command:
         - "./node-discovery-perf"
-        image: nebril/cilium-nodes-perf
-        imagePullPolicy: Always
+        image: docker.io/cilium/cilium-nodes-perf:v1.0.0
+        imagePullPolicy: IfNotPresent
         name: nodeperf
         volumeMounts:
         - mountPath: /var/lib/etcd-config

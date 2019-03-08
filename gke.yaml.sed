@@ -23,7 +23,7 @@ spec:
         - "--external-count=INIT_COUNT"
         command:
         - "./node-discovery-perf"
-        image: docker.io/cilium/cilium-nodes-perf:v1.0.0
+        image: docker.io/cilium/node-discovery-perf:v1.0.0
         imagePullPolicy: IfNotPresent
         name: nodeperf
         volumeMounts:
@@ -73,7 +73,7 @@ spec:
         - "--external-count=INIT_COUNT"
         command:
         - "./node-discovery-perf"
-        image: docker.io/cilium/cilium-nodes-perf:v1.0.0
+        image: docker.io/cilium/node-discovery-perf:v1.0.0
         imagePullPolicy: IfNotPresent
         name: nodeperf
         volumeMounts:
